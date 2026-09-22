@@ -1,0 +1,16 @@
+{
+  "brand": "Radar de Editais",
+  "site_url": "https://lukiin-z.github.io/radar-editais",
+  "checkout_url": "",
+  "checkout_url_anual": "",
+  "public_telegram_url": "",
+  "price_month": "R$ 19,90",
+  "price_year": "R$ 199",
+  "goatcounter": "",
+  "google_site_verification": "",
+  "horizon_days": 90,
+  "workers": 3,
+  "request_interval": 2.0,
+  "min_total_ok": 5000,
+  "indexnow_key": "f33d272064dfd03f6d584a5e1121b26f"
+}

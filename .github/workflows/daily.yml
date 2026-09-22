@@ -1,0 +1,78 @@
+name: radar-diario
+
+on:
+  schedule:
+    - cron: "15 9 * * *"   # 06:15 em Brasília; alertas saem ~07:00 depois da coleta
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write           # keepalive: reativa o próprio agendamento
+
+concurrency:
+  group: radar
+  cancel-in-progress: false
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      PYTHONIOENCODING: utf-8
+      # Variáveis (Settings → Secrets and variables → Actions → Variables). Vazias = usa config.json
+      SITE_URL: ${{ vars.SITE_URL }}
+      CHECKOUT_URL: ${{ vars.CHECKOUT_URL }}
+      CHECKOUT_URL_ANUAL: ${{ vars.CHECKOUT_URL_ANUAL }}
+      PUBLIC_TELEGRAM_URL: ${{ vars.PUBLIC_TELEGRAM_URL }}
+      GOATCOUNTER: ${{ vars.GOATCOUNTER }}
+      GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
+      # Segredos (Settings → Secrets and variables → Actions → Secrets). Ausentes = alertas desligados
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_PUBLIC_CHAT: ${{ secrets.TELEGRAM_PUBLIC_CHAT }}
+      TELEGRAM_PRO_CHAT: ${{ secrets.TELEGRAM_PRO_CHAT }}
+      TELEGRAM_ADMIN_CHAT: ${{ secrets.TELEGRAM_ADMIN_CHAT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Testes
+        run: python -m unittest discover -s tests -q
+      - name: Coleta PNCP e geração do site
+        run: python run.py collect
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deploy
+        uses: actions/deploy-pages@v4
+      - name: Alertas no Telegram
+        if: success()
+        run: python run.py notify
+      - name: Avisar buscadores (IndexNow)
+        if: success()
+        run: python run.py ping || true
+      - name: Saúde da execução
+        if: always()
+        run: python run.py health
+      - name: Guardar logs da execução
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: execucao-${{ github.run_id }}
+          path: |
+            work/status.json
+            work/notify.json
+          retention-days: 30
+          if-no-files-found: ignore
+      - name: Keepalive do agendamento
+        # repositório sem commits por 60 dias tem o cron desligado pelo GitHub
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/daily.yml/enable" || true
