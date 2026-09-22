@@ -258,13 +258,13 @@ def build_site(records, cfg, out_dir, now, status, history_csv=""):
     body = f"""<section class="hero">
 <h1>Licitações abertas hoje, organizadas por segmento e estado</h1>
 <p class="lead"><b>{num(total)}</b> licitações com proposta aberta agora, somando <b>{esc(brl(valor_total))}</b> em valor estimado.
-<b>{num(len(novos))}</b> publicadas desde a última atualização. Dados oficiais do PNCP, atualizados todo dia.</p>
+{f'<b>{num(len(novos))}</b> publicadas desde a última atualização. ' if novos else ''}Dados oficiais do PNCP, atualizados todo dia.</p>
 </section>
 {site.cta()}
 <h2>Por segmento</h2>{seg_chips}
 <h2>Por estado</h2>{uf_chips}
 <h2>Encerram hoje ou amanhã</h2>{site.listing(soon, 30)}
-<h2>Publicadas recentemente</h2>{site.listing(newest, 30)}
+{('<h2>Publicadas recentemente</h2>' + site.listing(newest, 30)) if newest else ''}
 """
     site.write("/", site.page("/", "Licitações abertas hoje por segmento e estado",
                               f"{total} licitações com proposta aberta hoje no Brasil, organizadas por segmento e estado. "
@@ -366,7 +366,7 @@ def build_site(records, cfg, out_dir, now, status, history_csv=""):
 <dl class="facts">
 <dt>Órgão</dt><dd>{esc(r['orgao'])}{(' — ' + esc(r['unidade'])) if r['unidade'] else ''}</dd>
 <dt>Local</dt><dd>{esc(where)}</dd>
-<dt>Modalidade</dt><dd>{esc(r['modalidade'] or '—')}{(' · disputa ' + esc(r['modo_disputa'].lower())) if r.get('modo_disputa') else ''}</dd>
+<dt>Modalidade</dt><dd>{esc(r['modalidade'] or '—')}{(' · disputa ' + esc(r['modo_disputa'].lower())) if r.get('modo_disputa') and r['modo_disputa'] != 'Não se aplica' else ''}</dd>
 <dt>Número</dt><dd>{esc(r['numero'] or '—')} · processo {esc(r['processo'] or '—')}</dd>
 <dt>Valor estimado</dt><dd>{esc(brl(r['valor']))}</dd>
 <dt>Propostas</dt><dd>de {esc(dt(r['abertura']))} até <b>{esc(dt(r['encerramento']))}</b></dd>
@@ -402,7 +402,7 @@ def build_offer_pages(site, recs, by_seg, novos):
                f'<p class="muted small">+ planilha .csv com todas as abertas</p></div></div>') if sample_seg else ""
     body = f"""<section class="hero">
 <h1>Pare de caçar edital. Receba as licitações do seu segmento no celular, todo dia.</h1>
-<p class="lead">Hoje há <b>{len(recs)}</b> licitações abertas e <b>{len(novos)}</b> novas desde ontem. Ninguém tem tempo de olhar tudo isso —
+<p class="lead">Hoje há <b>{num(len(recs))}</b> licitações abertas{f' e <b>{num(len(novos))}</b> novas desde ontem' if novos else ''}. Ninguém tem tempo de olhar tudo isso —
 o Radar olha por você e manda só o que é do seu ramo.</p>
 </section>
 <div class="two">
