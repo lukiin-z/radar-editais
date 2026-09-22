@@ -63,6 +63,26 @@ class TestFetch(unittest.TestCase):
         self.assertFalse(still_open({"encerramento": "2026-09-22T11:00:00"}, NOW))
         self.assertFalse(still_open({"encerramento": None}, NOW))
 
+    def test_segunda_passada_recupera_pagina_instavel(self):
+        from radar import fetch
+        raw = json.load(open(os.path.join(ROOT, "tests", "fixtures", "pncp_page.json"), encoding="utf-8"))["data"]
+        calls = {}
+
+        def fake(url, retries=4):
+            page = int(url.split("pagina=")[1].split("&")[0])
+            calls[page] = calls.get(page, 0) + 1
+            if page == 3 and calls[page] == 1:
+                raise RuntimeError("504")
+            return {"totalPaginas": 3, "totalRegistros": 3, "data": [raw[page]]}
+
+        orig, fetch._get_json = fetch._get_json, fake
+        try:
+            recs, rep = fetch.fetch_open(interval=0, retry_pause=0, now=NOW)
+        finally:
+            fetch._get_json = orig
+        self.assertEqual(len(recs), 3)
+        self.assertEqual(rep["failed_pages"], [])
+
     def test_merge_recupera_so_quando_houve_falha(self):
         cur, prev = [rec(1, "a")], [rec(1, "a"), rec(2, "b"), rec(3, "c", enc="2026-09-01T00:00:00")]
         rep = {"failed_pages": []}

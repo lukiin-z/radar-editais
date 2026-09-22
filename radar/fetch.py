@@ -104,11 +104,12 @@ def normalize_record(r):
     }
 
 
-def fetch_open(horizon_days=90, workers=3, max_pages=None, now=None, interval=None):
+def fetch_open(horizon_days=90, workers=3, max_pages=None, now=None, interval=None, retry_pause=60):
     """Baixa todas as contratações com proposta aberta encerrando em até `horizon_days`.
 
     Retorna (registros, relatorio). Páginas que falham não abortam a coleta:
-    ficam registradas em relatorio["failed_pages"] para o merge com o snapshot anterior.
+    ganham uma segunda passada no fim e, se ainda falharem, ficam em relatorio["failed_pages"]
+    para o merge com o snapshot anterior.
     """
     now = now or datetime.now()
     data_final = (now + timedelta(days=horizon_days)).strftime("%Y%m%d")
@@ -128,14 +129,26 @@ def fetch_open(horizon_days=90, workers=3, max_pages=None, now=None, interval=No
         return p, _get_json(_page_url(data_final, p)).get("data") or []
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = [ex.submit(work, p) for p in range(2, total_pages + 1)]
-        for f in futures:
+        futures = {ex.submit(work, p): p for p in range(2, total_pages + 1)}
+        for f, p in futures.items():
             try:
-                p, data = f.result()
-                pages[p] = data
+                pages[p] = f.result()[1]
             except Exception as e:  # uma página ruim não derruba o dia
                 log.error("%s", e)
-                failed.append(str(e).split("pagina=")[-1].split("&")[0])
+                failed.append(p)
+
+    # segunda passada: 502/504 do PNCP costumam ser momentâneos
+    if failed:
+        log.info("segunda passada em %s páginas após pausa", len(failed))
+        time.sleep(retry_pause)
+        still = []
+        for p in failed:
+            try:
+                pages[p] = work(p)[1]
+            except Exception as e:
+                log.error("segunda passada: %s", e)
+                still.append(p)
+        failed = still
 
     records = {}
     for p in sorted(pages):
